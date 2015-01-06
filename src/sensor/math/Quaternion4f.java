@@ -6,5 +6,10 @@ public class Quaternion4f {
 		// TODO Auto-generated method stub
 		return null;
 	}
-
+/*
+	@Override
+	public String toString(){
+		return "("+
+	}
+*/
 }

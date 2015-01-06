@@ -22,9 +22,8 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	// then read remaning byte.
 	// Please be nice leave upper-case letter for double (not implemented), lets try to keep this clean.
 	
-	private final static byte TAP_VALUE = (byte) 0xFF;
-	private final static byte TAP_REPETITION = 4;
-	private final static int TAP_Frequency = 5000;
+	private final static byte TAP_VALUE[] = {(byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff};
+	private final static int TAP_FREQUENCY = 5000;
 	
 	private final Logger log = Logger.getLogger( BasicReader.class.getName() );
 	
@@ -49,11 +48,13 @@ public class BasicReader implements SensorStreamReader, Runnable {
 		while ( !serialPort.isOpened() ){
 			try {
 				serialPort.openPort();
+				Thread.sleep(200);
 			} catch (SerialPortException e) {
 				if ( !e.getExceptionType().equals(SerialPortException.TYPE_PORT_NOT_FOUND) ){
 					e.printStackTrace();
 					return;
 				}
+			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
@@ -66,17 +67,23 @@ public class BasicReader implements SensorStreamReader, Runnable {
 			log.info("got sync message");
 			
 			int packetRecived = 0;
-			boolean outOfSync = true;
+			boolean outOfSync = false;
 			while ( serialPort.isOpened() ){
+				
+				packetRecived++;
 				//there should be a new synchronization message  
-				if (packetRecived == TAP_Frequency || outOfSync){
+				if (packetRecived >= TAP_FREQUENCY || outOfSync){
+					log.info("Waiting for sync message");
 					waitSyncornized();
+					log.info("got sync message");
 					packetRecived = 0;
 					outOfSync = false;
 				}
-			
+				
+				log.info("waiting type");
 				//what kind of packet expect?
 				byte packetType = serialPort.readBytes(1)[0];
+				log.info("got type "+packetType);
 				switch(packetType){
 				case 'a':
 					Vector3s a = Vector3s.parse( serialPort.readBytes(6) );
@@ -105,6 +112,11 @@ public class BasicReader implements SensorStreamReader, Runnable {
 				default:
 					outOfSync=true;//error! wait next sync message
 					System.err.println("Error, unexpected packet type "+packetType);
+					byte[] readBytes = serialPort.readBytes();
+					if (readBytes!=null){
+						System.err.println("Buffer is 0x"+bytesToHex(readBytes) );
+						
+					}
 					continue;
 				}
 			
@@ -114,11 +126,27 @@ public class BasicReader implements SensorStreamReader, Runnable {
 		}
 	}
 
+	final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
+	public static String bytesToHex(byte[] bytes) {
+	    char[] hexChars = new char[bytes.length * 2];
+	    for ( int j = 0; j < bytes.length; j++ ) {
+	        int v = bytes[j] & 0xFF;
+	        hexChars[j * 2] = hexArray[v >>> 4];
+	        hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+	    }
+	    return new String(hexChars);
+	}
 
 	private boolean waitSyncornized() throws SerialPortException {
 		byte tapValueFound = 0;
-		while(tapValueFound < TAP_REPETITION){
-			if (serialPort.readBytes(1)[0] == TAP_VALUE){
+		int size_buffer;
+		while(tapValueFound < TAP_VALUE.length){
+			size_buffer =serialPort.getInputBufferBytesCount(); 
+			if (size_buffer > 300){
+				log.severe("buffer grossi: "+size_buffer);
+			}
+			
+			if (serialPort.readBytes(1)[0] == TAP_VALUE[tapValueFound]){
 				tapValueFound++;
 			}else{
 				tapValueFound=0;//start the counting again

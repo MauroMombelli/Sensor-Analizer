@@ -13,4 +13,15 @@ public class Vector3s {
 		return ris;
 	}
 
+	@Override
+	public String toString(){
+		StringBuilder s = new StringBuilder(20);
+		s.append("(");
+		for (int i=0; i < 3; i++){
+			s.append( arr[i] );
+			s.append( ";");
+		}
+		s.append(")");
+		return s.toString();
+	}
 }
