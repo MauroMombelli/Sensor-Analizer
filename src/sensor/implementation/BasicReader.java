@@ -1,5 +1,6 @@
 package sensor.implementation;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 
@@ -22,8 +23,8 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	// then read remaning byte.
 	// Please be nice leave upper-case letter for double (not implemented), lets try to keep this clean.
 	
-	private final static byte TAP_VALUE[] = {(byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff};
-	private final static int TAP_FREQUENCY = 5000;
+	private final static byte TAP_VALUE[] = {(byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff,(byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff};
+	private final static int TAP_FREQUENCY = 1000;
 	
 	private final Logger log = Logger.getLogger( BasicReader.class.getName() );
 	
@@ -34,6 +35,8 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	
 	private SerialPort serialPort;
 	Thread myself = new Thread(this);
+	
+	private int readed=0;
 	
 	@Override
 	public void start() throws Exception {
@@ -52,7 +55,12 @@ public class BasicReader implements SensorStreamReader, Runnable {
 			} catch (SerialPortException e) {
 				if ( !e.getExceptionType().equals(SerialPortException.TYPE_PORT_NOT_FOUND) ){
 					e.printStackTrace();
-					return;
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
 				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
@@ -63,48 +71,56 @@ public class BasicReader implements SensorStreamReader, Runnable {
 		try {
 			log.info("Waiting for sync message");
 			//wait for sync message 0xffffffff, if not already received.
-			waitSyncornized();
-			log.info("got sync message");
+			int lostBytes = waitSyncornized();
+			log.info("got sync message after "+lostBytes+" bytes");
+			
+			int packetRecivedFromLastTap = 0;
 			
 			int packetRecived = 0;
 			boolean outOfSync = false;
+			long start_MS = System.currentTimeMillis();
+			long packetCount = 0;
 			while ( serialPort.isOpened() ){
-				
-				packetRecived++;
+			
+				packetRecivedFromLastTap++;
 				//there should be a new synchronization message  
-				if (packetRecived >= TAP_FREQUENCY || outOfSync){
+				if (packetRecivedFromLastTap >= TAP_FREQUENCY || outOfSync){
 					log.info("Waiting for sync message");
-					waitSyncornized();
-					log.info("got sync message");
-					packetRecived = 0;
+					lostBytes = waitSyncornized();
+					log.info("got sync message after "+lostBytes+" bytes");
+					packetRecivedFromLastTap = 0;
 					outOfSync = false;
 				}
 				
-				log.info("waiting type");
+				packetRecived++;
+				packetCount++;
+				
+				//log.info("waiting type");
 				//what kind of packet expect?
-				byte packetType = serialPort.readBytes(1)[0];
-				log.info("got type "+packetType);
+				byte packetType = getBytes(1)[0];
+				
+				//log.info("got type "+packetType);
 				switch(packetType){
 				case 'a':
-					Vector3s a = Vector3s.parse( serialPort.readBytes(6) );
+					Vector3s a = Vector3s.parse( getBytes(6) );
 					for (AccelerometerListener listener:accelerometerListeners){
-						listener.event(a);
+						listener.event(a, packetCount);
 					}
 					break;
 				case 'm':
-					Vector3s m = Vector3s.parse( serialPort.readBytes(6) );
+					Vector3s m = Vector3s.parse( getBytes(6) );
 					for (MagnetometerListener listener:magnetometerListeners){
-						listener.event(m);
+						listener.event(m, packetCount);
 					}
 					break;
 				case 'g':
-					Vector3s g = Vector3s.parse( serialPort.readBytes(6) );
+					Vector3s g = Vector3s.parse( getBytes(6) );
 					for (GyroscopeListener listener:gyroscopeListeners){
-						listener.event(g);
+						listener.event(g, packetCount);
 					}
 					break;
 				case 'q':
-					Quaternion4f q = Quaternion4f.parse( serialPort.readBytes(6) );
+					Quaternion4f q = Quaternion4f.parse( getBytes(6) );
 					for (QuaternionListener listener:quaternionListeners){
 						listener.event(q);
 					}
@@ -112,19 +128,54 @@ public class BasicReader implements SensorStreamReader, Runnable {
 				default:
 					outOfSync=true;//error! wait next sync message
 					System.err.println("Error, unexpected packet type "+packetType);
-					byte[] readBytes = serialPort.readBytes();
-					if (readBytes!=null){
-						System.err.println("Buffer is 0x"+bytesToHex(readBytes) );
-						
-					}
+					//byte[] readBytes = getBytes();
+					//if (readBytes!=null){
+					//	System.err.println("Buffer is 0x"+bytesToHex(readBytes) );
+					//}
 					continue;
 				}
-			
+				long actualTimeMS= System.currentTimeMillis();
+				if (actualTimeMS-start_MS >= 1000){
+					//almost every seconds, wedon'tcaretoo much about precision, see getBytes that just sum up xD
+					start_MS = actualTimeMS;
+					log.info("Bytes/s "+readed +" packet/s "+packetRecived);
+					packetRecived=readed = 0;
+				}
 			}
 		}catch(Exception e){
 			e.printStackTrace();
 		}
 	}
+
+	private byte[] getBytes(int size) throws SerialPortException, IOException {
+		readed += size;
+		
+		int size_buffer = serialPort.getInputBufferBytesCount();
+		if (size_buffer > 300){
+			log.severe("buffer grossi: "+size_buffer);
+		}
+		
+		while(serialPort.getInputBufferBytesCount()<size){
+			try {
+				Thread.sleep(0, 1000);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		byte[] readBytes = serialPort.readBytes(size);
+		System.out.println(bytesToHex(readBytes));
+		return readBytes;
+	}
+	/*
+	private void getBytes(byte ris[]) throws SerialPortException, IOException {
+		
+		int size_buffer = serialPort.getInputBufferBytesCount();
+		if (size_buffer > 300){
+			log.severe("buffer grossi: "+size_buffer);
+		}
+		return serialPort.readBytes(ris.length);
+	}*/
 
 	final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
 	public static String bytesToHex(byte[] bytes) {
@@ -137,22 +188,21 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	    return new String(hexChars);
 	}
 
-	private boolean waitSyncornized() throws SerialPortException {
+	private int waitSyncornized() throws SerialPortException, IOException {
 		byte tapValueFound = 0;
-		int size_buffer;
+		byte ris[];
+		int lostByte = 0;
 		while(tapValueFound < TAP_VALUE.length){
-			size_buffer =serialPort.getInputBufferBytesCount(); 
-			if (size_buffer > 300){
-				log.severe("buffer grossi: "+size_buffer);
-			}
-			
-			if (serialPort.readBytes(1)[0] == TAP_VALUE[tapValueFound]){
+			ris = getBytes(1);
+			//System.out.println("GOT: "+bytesToHex(ris) );
+			if (ris[0] == TAP_VALUE[tapValueFound]){
 				tapValueFound++;
 			}else{
+				lostByte+=tapValueFound+1;
 				tapValueFound=0;//start the counting again
 			}
 		}
-		return true;
+		return lostByte;
 	}
 
 	@Override
