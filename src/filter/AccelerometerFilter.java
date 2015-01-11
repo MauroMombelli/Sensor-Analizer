@@ -1,5 +1,5 @@
 package filter;
-
+/*
 import java.awt.GridLayout;
 
 import javax.swing.JFrame;
@@ -68,3 +68,4 @@ public class AccelerometerFilter implements AccelerometerListener {
 	}
 
 }
+*/

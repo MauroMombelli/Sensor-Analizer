@@ -1,16 +1,6 @@
 package filter;
 
-import java.awt.GridLayout;
-
-import javax.swing.JFrame;
-
-import org.jfree.data.xy.XYDataItem;
-import org.jfree.data.xy.XYSeries;
-
-import sensor.listener.MagnetometerListener;
-import sensor.math.Vector3s;
-import sensor.visualizer.FastPlotter;
-
+/*
 public class MagnetometerFilter implements MagnetometerListener {
 
 	XYSeries xRaw = new XYSeries("x raw");
@@ -59,3 +49,5 @@ public class MagnetometerFilter implements MagnetometerListener {
 	}
 
 }
+*/
+

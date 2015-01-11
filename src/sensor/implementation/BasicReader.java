@@ -7,10 +7,8 @@ import java.util.logging.Logger;
 import jssc.SerialPort;
 import jssc.SerialPortException;
 import sensor.SensorStreamReader;
-import sensor.listener.AccelerometerListener;
-import sensor.listener.GyroscopeListener;
-import sensor.listener.MagnetometerListener;
 import sensor.listener.QuaternionListener;
+import sensor.listener.VectorListener;
 import sensor.math.Quaternion4f;
 import sensor.math.Vector3s;
 
@@ -28,9 +26,7 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	
 	private final Logger log = Logger.getLogger( BasicReader.class.getName() );
 	
-	private final ArrayList<AccelerometerListener> accelerometerListeners = new ArrayList<>();
-	private final ArrayList<MagnetometerListener> magnetometerListeners = new ArrayList<>();
-	private final ArrayList<GyroscopeListener> gyroscopeListeners = new ArrayList<>();
+	private final ArrayList<VectorListener> vectorListeners = new ArrayList<>();
 	private final ArrayList<QuaternionListener> quaternionListeners = new ArrayList<>();
 	
 	private SerialPort serialPort;
@@ -51,19 +47,15 @@ public class BasicReader implements SensorStreamReader, Runnable {
 		while ( !serialPort.isOpened() ){
 			try {
 				serialPort.openPort();
-				Thread.sleep(200);
-			} catch (SerialPortException e) {
-				if ( !e.getExceptionType().equals(SerialPortException.TYPE_PORT_NOT_FOUND) ){
-					e.printStackTrace();
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					}
-				}
-			} catch (InterruptedException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e1) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return;
+				}
 			}
 		}
 		log.info("Serial port to be opened");
@@ -103,20 +95,20 @@ public class BasicReader implements SensorStreamReader, Runnable {
 				switch(packetType){
 				case 'a':
 					Vector3s a = Vector3s.parse( getBytes(6) );
-					for (AccelerometerListener listener:accelerometerListeners){
-						listener.event(a, packetCount);
+					for (VectorListener listener:vectorListeners){
+						listener.event( VectorListener.EventType.acce, a, packetCount);
 					}
 					break;
 				case 'm':
 					Vector3s m = Vector3s.parse( getBytes(6) );
-					for (MagnetometerListener listener:magnetometerListeners){
-						listener.event(m, packetCount);
+					for (VectorListener listener:vectorListeners){
+						listener.event(VectorListener.EventType.magne, m, packetCount);
 					}
 					break;
 				case 'g':
 					Vector3s g = Vector3s.parse( getBytes(6) );
-					for (GyroscopeListener listener:gyroscopeListeners){
-						listener.event(g, packetCount);
+					for (VectorListener listener:vectorListeners){
+						listener.event( VectorListener.EventType.gyro, g, packetCount);
 					}
 					break;
 				case 'q':
@@ -164,7 +156,7 @@ public class BasicReader implements SensorStreamReader, Runnable {
 			}
 		}
 		byte[] readBytes = serialPort.readBytes(size);
-		System.out.println(bytesToHex(readBytes));
+		//System.out.println(bytesToHex(readBytes));
 		return readBytes;
 	}
 	/*
@@ -206,18 +198,8 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	}
 
 	@Override
-	public void addAccelerometerListener(AccelerometerListener l) {
-		accelerometerListeners.add(l);
-	}
-
-	@Override
-	public void addMagnetometerListener(MagnetometerListener l) {
-		magnetometerListeners.add(l);
-	}
-
-	@Override
-	public void addGyroscopeListener(GyroscopeListener l) {
-		gyroscopeListeners.add(l);
+	public void addListener(VectorListener l) {
+		vectorListeners.add(l);
 	}
 
 }
