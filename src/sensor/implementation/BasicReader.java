@@ -36,11 +36,14 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	
 	@Override
 	public void start() throws Exception {
-		serialPort = new SerialPort("/dev/ttyACM0");
+		serialPort = new SerialPort("/dev/ttyUSB0");
 		myself.start();
 		myself.setName( getClass().getName() );
 	}
-
+	
+	long start_MS = System.currentTimeMillis();
+	int packetRecived = 0;
+	
 	@Override
 	public void run() {
 		log.info("Waiting for serial port to be open");
@@ -74,9 +77,8 @@ public class BasicReader implements SensorStreamReader, Runnable {
 			
 			int packetRecivedFromLastTap = 0;
 			
-			int packetRecived = 0;
 			boolean outOfSync = false;
-			long start_MS = System.currentTimeMillis();
+			
 			long packetCount = 0;
 			while ( serialPort.isOpened() ){
 			
@@ -100,19 +102,19 @@ public class BasicReader implements SensorStreamReader, Runnable {
 				//log.info("got type "+packetType);
 				switch(packetType){
 				case 'a':
-					Vector3s a = Vector3s.parse( getBytes(6) );
+					Vector3s a = Vector3s.parse( getBytes(6), true );
 					for (VectorListener listener:vectorListeners){
 						listener.event( VectorListener.EventType.acce, a, packetCount);
 					}
 					break;
 				case 'm':
-					Vector3s m = Vector3s.parse( getBytes(6) );
+					Vector3s m = Vector3s.parse( getBytes(6), true );
 					for (VectorListener listener:vectorListeners){
 						listener.event(VectorListener.EventType.magne, m, packetCount);
 					}
 					break;
 				case 'g':
-					Vector3s g = Vector3s.parse( getBytes(6) );
+					Vector3s g = Vector3s.parse( getBytes(6), true );
 					for (VectorListener listener:vectorListeners){
 						listener.event( VectorListener.EventType.gyro, g, packetCount);
 					}
@@ -132,13 +134,7 @@ public class BasicReader implements SensorStreamReader, Runnable {
 					//}
 					continue;
 				}
-				long actualTimeMS= System.currentTimeMillis();
-				if (actualTimeMS-start_MS >= 1000){
-					//almost every seconds, wedon'tcaretoo much about precision, see getBytes that just sum up xD
-					start_MS = actualTimeMS;
-					log.info("Bytes/s "+readed +" packet/s "+packetRecived);
-					packetRecived=readed = 0;
-				}
+				
 			}
 		}catch(Exception e){
 			e.printStackTrace();
@@ -153,15 +149,15 @@ public class BasicReader implements SensorStreamReader, Runnable {
 			log.severe("buffer grossi: "+size_buffer);
 		}
 		
-		while(serialPort.getInputBufferBytesCount()<size){
-			try {
-				Thread.sleep(0, 1000);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
 		byte[] readBytes = serialPort.readBytes(size);
+		
+		long actualTimeMS= System.currentTimeMillis();
+		if (actualTimeMS-start_MS >= 1000){
+			//almost every seconds, we don't care too much about precision, see getBytes that just sum up xD
+			start_MS = actualTimeMS;
+			log.info("Bytes/s "+readed +" packet/s "+packetRecived);
+			packetRecived=readed = 0;
+		}
 		//System.out.println(bytesToHex(readBytes));
 		return readBytes;
 	}
