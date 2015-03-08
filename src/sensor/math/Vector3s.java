@@ -1,5 +1,7 @@
 package sensor.math;
 
+import java.util.Arrays;
+
 public class Vector3s {
 	
 	short arr[] = new short[3];
@@ -25,14 +27,7 @@ public class Vector3s {
 
 	@Override
 	public String toString(){
-		StringBuilder s = new StringBuilder(20);
-		s.append("(");
-		for (int i=0; i < 3; i++){
-			s.append( arr[i] );
-			s.append( ";");
-		}
-		s.append(")");
-		return s.toString();
+		return Arrays.toString(arr);
 	}
 
 	public short getX() {

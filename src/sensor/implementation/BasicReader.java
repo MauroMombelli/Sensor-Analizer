@@ -1,6 +1,7 @@
 package sensor.implementation;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 
@@ -120,7 +121,7 @@ public class BasicReader implements SensorStreamReader, Runnable {
 					}
 					break;
 				case 'q':
-					Quaternion4f q = Quaternion4f.parse( getBytes(6) );
+					Quaternion4f q = Quaternion4f.parse( getBytes(4*4), ByteOrder.LITTLE_ENDIAN );
 					for (QuaternionListener listener:quaternionListeners){
 						listener.event(q);
 					}
@@ -202,6 +203,11 @@ public class BasicReader implements SensorStreamReader, Runnable {
 	@Override
 	public void addListener(VectorListener l) {
 		vectorListeners.add(l);
+	}
+
+	@Override
+	public void addListener(QuaternionListener l) {
+		quaternionListeners.add(l);
 	}
 
 }
